@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Ordering</title>
+
+    <style>
+        .playlists>div {
+            display: flex;
+            justify-content: space-between;
+            width: 500px;
+            margin: 0 auto;
+            font-weight: bold;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            background-color: #ccc;
+            color: #555;
+            padding: 15px;
+            margin-bottom: 8px;
+        }
+
+        .check.same {
+            color: green;
+        }
+
+        .check.change {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root">
+        Carregando...
+    </div>
+
+    <script type="text/javascript">
+        const root = document.getElementById('root')
+
+        async function processPlaylists(playlists) {
+            for (const playlist of playlists) {
+                const item = root.querySelector(`[data-id='${playlist.id}']`)
+                const response = await fetch(`/process${location.search}`, {
+                    method: 'POST',
+                    body: JSON.stringify(playlist),
+                    headers: new Headers({ Accept: 'application/json', 'Content-Type': 'application/json' })
+                })
+
+                const data = await response.json()
+                const checkItem = document.createElement('div')
+                checkItem.classList.add('check')
+
+                if (data.error) {
+                    checkItem.classList.add('change')
+                    checkItem.innerHTML = 'Erro na aplicação'
+
+                    item.appendChild(checkItem)
+                } else if (data.result === 'same') {
+                    checkItem.classList.add('same')
+                    checkItem.innerHTML = 'Nada foi alterado'
+
+                    item.appendChild(checkItem)
+                } else {
+                    checkItem.classList.add('change')
+                    checkItem.innerHTML = `${data.tracks} Músicas reordenadas`
+
+                    item.appendChild(checkItem)
+                }
+            }
+        }
+
+        fetch('/playlists')
+            .then(resp => resp.json())
+            .then(playlists => {
+                root.innerHTML = '<div class="playlists"></div>'
+
+                const playlistDiv = root.querySelector('.playlists')
+
+                for (const playlist of playlists) {
+                    const item = document.createElement('div')
+
+                    item.dataset.id = playlist.id
+                    item.innerHTML = `${playlist.name} (${playlist.lastTotal})`
+
+                    playlistDiv.appendChild(item)
+                }
+
+                processPlaylists(playlists)
+            })
+    </script>
+</body>
+
+</html>
