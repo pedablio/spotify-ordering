@@ -22,7 +22,7 @@ router.get('/', (req, res) => {
   const state = (Math.random() + 1).toString(36).substring(2)
   const clientId = process.env.CLIENT_ID
   const redirectUri = `${process.env.APP_URI}/callback`
-  const queryUrl = `?response_type=code&client_id=${clientId}&scope=playlist-modify-public&redirect_uri=${redirectUri}&state=${state}`
+  const queryUrl = `?response_type=code&client_id=${clientId}&scope=playlist-modify-public,user-library-read,user-library-modify&redirect_uri=${redirectUri}&state=${state}`
 
   res.redirect(`${loginUrl}${queryUrl}`)
 })
@@ -97,6 +97,56 @@ router.post('/process', async (req, res) => {
 
     return res.json({ result: 'change', tracks: changed })
   } catch (err) {
+    return res.json({ error: true })
+  }
+})
+
+router.post('/liked', async (req, res) => {
+  try {
+    const { token } = req.query
+
+    const api = new SpotifyWebApi({ accessToken: token })
+
+    const resp = await api.getMySavedTracks({ limit: 1 })
+
+    const { total } = resp.body
+    const length = Math.ceil(total / 50)
+    const allTracks = []
+
+    for (const page of Array.from({ length }, (_, k) => k + 1)) {
+      const { body } = await api.getMySavedTracks({ limit: 50, offset: (page - 1) * 50 })
+
+      allTracks.push(
+        ...body.items.map(obj => ({
+          id: obj.track.id,
+          name: obj.track.name,
+          date: obj.track.album.release_date,
+        })),
+      )
+    }
+
+    const tracks = allTracks.map((item, number) => ({ ...item, number }))
+    const sortedTracks = lodash.orderBy(tracks, ['date', 'name'], ['desc', 'asc'])
+    const changedIndex = lodash.findLastIndex(sortedTracks, (track, index) => track.number !== index)
+
+    if (changedIndex === -1) {
+      return res.json({ result: 'same' })
+    }
+
+    const changedTracks = sortedTracks.slice(0, changedIndex + 1).reverse()
+
+    for (const page of Array.from({ length: Math.ceil(changedTracks.length / 50) }, (_, k) => k + 1)) {
+      await api.removeFromMySavedTracks(changedTracks.slice((page - 1) * 50, page * 50 - 1).map(track => track.id))
+    }
+
+    for (const track of changedTracks) {
+      await api.addToMySavedTracks([track.id])
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+
+    return res.json({ result: 'change', tracks: changedTracks.length })
+  } catch (err) {
+    console.log(err)
     return res.json({ error: true })
   }
 })
