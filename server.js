@@ -69,7 +69,15 @@ router.post('/process', async (req, res) => {
 
     for (const track of sortedTracks) {
       if (track.number !== count) {
-        await api.reorderTracksInPlaylist(id, track.number, count)
+        await retryWithBackOff(
+          {
+            retries: 5,
+            minDelay: 1000,
+            maxDelay: 5000,
+            factor: 2,
+          },
+          api.reorderTracksInPlaylist(id, track.number, count),
+        )
 
         const isBefore = track.number > count
 
@@ -97,7 +105,7 @@ router.post('/process', async (req, res) => {
 
     return res.json({ result: 'change', tracks: changed })
   } catch (err) {
-    return res.json({ error: true })
+    return res.json({ error: true, data: err })
   }
 })
 
@@ -141,13 +149,13 @@ router.post('/liked', async (req, res) => {
 
     for (const track of changedTracks) {
       await api.addToMySavedTracks([track.id])
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await delay(2000)
     }
 
     return res.json({ result: 'change', tracks: changedTracks.length })
   } catch (err) {
     console.log(err)
-    return res.json({ error: true })
+    return res.json({ error: true, data: err })
   }
 })
 
@@ -167,9 +175,29 @@ router.get('/callback', async (req, res) => {
 
     return res.redirect(`${process.env.APP_URI}/app?token=${data.access_token}`)
   } catch (err) {
-    return res.json({ error: true })
+    return res.json({ error: true, data: err })
   }
 })
 
 app.use(router)
 app.listen(4354)
+
+const delay = time => new Promise(resolve => setTimeout(resolve, time))
+const calculateBackoff = ({ minDelay, maxDelay, factor }, attempt) => {
+  const attemptBackoff = minDelay * factor ** attempt
+  const backoff = Math.min(attemptBackoff, maxDelay)
+  return backoff
+}
+
+const shouldHalt = (retries, attempt) => attempt >= retries
+const invokeAction = (config, action, args, attempt) =>
+  action(...args).catch(err =>
+    shouldHalt(config.retries, attempt)
+      ? Promise.reject(err)
+      : delay(calculateBackoff(config, attempt)).then(() => invokeAction(config, action, args, attempt + 1)),
+  )
+
+const retryWithBackOff =
+  (config, action) =>
+  (...args) =>
+    invokeAction(config, action, args, 0)
