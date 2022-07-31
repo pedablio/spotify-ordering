@@ -144,10 +144,8 @@ router.post('/liked', async (req, res) => {
     const changedTracks = sortedTracks.slice(0, changedIndex + 1).reverse()
 
     for (const track of changedTracks) {
-      await api.removeFromMySavedTracks([track.id])
-      await delay(1000)
       await api.addToMySavedTracks([track.id])
-      await delay(1000)
+      await delay(2000)
     }
 
     return res.json({ result: 'change', tracks: changedTracks.length })
