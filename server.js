@@ -128,13 +128,14 @@ router.post('/liked', async (req, res) => {
         ...body.items.map(obj => ({
           id: obj.track.id,
           name: obj.track.name,
+          albumName: obj.track.album.name,
           date: obj.track.album.release_date,
         })),
       )
     }
 
     const tracks = allTracks.map((item, number) => ({ ...item, number }))
-    const sortedTracks = lodash.orderBy(tracks, ['date', 'name'], ['desc', 'asc'])
+    const sortedTracks = lodash.orderBy(tracks, ['date', 'albumName', 'name'], ['desc', 'asc', 'asc'])
     const changedIndex = lodash.findLastIndex(sortedTracks, (track, index) => track.number !== index)
 
     if (changedIndex === -1) {
@@ -144,7 +145,15 @@ router.post('/liked', async (req, res) => {
     const changedTracks = sortedTracks.slice(0, changedIndex + 1).reverse()
 
     for (const track of changedTracks) {
-      await api.addToMySavedTracks([track.id])
+      await retryWithBackOff(
+        {
+          retries: 5,
+          minDelay: 1000,
+          maxDelay: 5000,
+          factor: 2,
+        },
+        api.addToMySavedTracks([track.id]),
+      )
       await delay(2000)
     }
 
