@@ -114,11 +114,13 @@ router.post('/liked', async (req, res) => {
     const { token, refresh } = req.query
 
     const api = new SpotifyWebApi({
-      accessToken: token,
-      refreshToken: refresh,
       clientId: process.env.CLIENT_ID,
       clientSecret: process.env.CLIENT_SECRET,
+      redirectUri: process.env.APP_URI,
     })
+
+    api.setAccessToken(token)
+    api.setRefreshToken(refresh)
 
     const resp = await api.getMySavedTracks({ limit: 1 })
 
@@ -152,7 +154,8 @@ router.post('/liked', async (req, res) => {
 
     for (const track of changedTracks) {
       if (trackNumber % 500 === 0) {
-        await api.refreshAccessToken()
+        const { body } = await api.refreshAccessToken()
+        api.setAccessToken(body.access_token)
       }
 
       await retryWithBackOff(
