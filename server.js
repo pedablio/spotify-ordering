@@ -111,9 +111,14 @@ router.post('/process', async (req, res) => {
 
 router.post('/liked', async (req, res) => {
   try {
-    const { token } = req.query
+    const { token, refresh } = req.query
 
-    const api = new SpotifyWebApi({ accessToken: token })
+    const api = new SpotifyWebApi({
+      accessToken: token,
+      refreshToken: refresh,
+      clientId: process.env.CLIENT_ID,
+      clientSecret: process.env.CLIENT_SECRET,
+    })
 
     const resp = await api.getMySavedTracks({ limit: 1 })
 
@@ -143,8 +148,13 @@ router.post('/liked', async (req, res) => {
     }
 
     const changedTracks = sortedTracks.slice(0, changedIndex + 1).reverse()
+    let trackNumber = 1
 
     for (const track of changedTracks) {
+      if (trackNumber % 500 === 0) {
+        await api.refreshAccessToken()
+      }
+
       await retryWithBackOff(
         {
           retries: 5,
@@ -155,6 +165,8 @@ router.post('/liked', async (req, res) => {
         api.addToMySavedTracks([track.id]),
       )
       await delay(2000)
+
+      trackNumber++
     }
 
     return res.json({ result: 'change', tracks: changedTracks.length })
@@ -178,7 +190,7 @@ router.get('/callback', async (req, res) => {
       { auth: { username: process.env.CLIENT_ID, password: process.env.CLIENT_SECRET } },
     )
 
-    return res.redirect(`${process.env.APP_URI}/app?token=${data.access_token}`)
+    return res.redirect(`${process.env.APP_URI}/app?token=${data.access_token}&refresh=${data.refresh_token}`)
   } catch (err) {
     return res.json({ error: true, data: err })
   }
