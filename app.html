@@ -105,14 +105,17 @@
 
       fetch('/playlists')
         .then(resp => resp.json())
-        .then(playlists => {
-          for (const playlist of playlists) {
+        .then(playlistObject => {
+          let playlists = []
+
+          for (const [id, data] of Object.entries(playlistObject)) {
             const item = document.createElement('div')
 
-            item.dataset.id = playlist.id
-            item.innerHTML = `${playlist.name} (${playlist.lastTotal})`
+            item.dataset.id = id
+            item.innerHTML = `${data.name} (${data.lastTotal})`
 
             playlistsDiv.appendChild(item)
+            playlists.push({ id, ...data })
           }
 
           return processPlaylists(playlists)
