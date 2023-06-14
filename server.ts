@@ -79,38 +79,17 @@ router.post('/process', async (request, response) => {
     const tracks = allTracks.map((item, number) => ({ ...item, number }))
     const sortedTracks = lodash.orderBy(tracks, ['date', 'albumName', 'name'], ['desc', 'asc', 'asc'])
     const playlist = playlistDb.get(id)
+    const changeCount = countChanged(sortedTracks)
+
+    const bar = new cliProgress.SingleBar({
+      etaBuffer: changeCount,
+      format: `${playlist.name} [{bar}] {percentage}% | ETA: {eta_formatted} | {value}/{total} | {duration_formatted}`,
+    })
+
+    bar.start(changeCount, 0)
 
     let count = 0
     let changed = 0
-
-    let shadowCount = 0
-    let shadowChanged = 0
-    const shadowTracks = [...sortedTracks]
-
-    for (const track of shadowTracks) {
-      if (track.number !== shadowCount) {
-        const isBefore = track.number > shadowCount
-
-        sortedTracks.forEach(st => {
-          if (isBefore) {
-            if (st.number >= shadowCount && st.number < track.number) {
-              st.number += 1
-            }
-          } else if (st.number <= shadowCount && st.number > track.number) {
-            st.number -= 1
-          }
-        })
-
-        track.number = shadowCount
-        shadowChanged++
-      }
-
-      shadowCount++
-    }
-
-    const bar = new cliProgress.SingleBar({ etaBuffer: shadowChanged, format: `${playlist.name} [{bar}] {percentage}% | ETA: {eta_formatted} | {value}/{total} | {duration_formatted}` })
-
-    bar.start(shadowChanged, 0)
 
     for (const track of sortedTracks) {
       if (track.number !== count) {
@@ -188,7 +167,10 @@ router.post('/liked', async (request, response) => {
     }
 
     const changedTracks = sortedTracks.slice(0, changedIndex + 1).reverse()
-    const bar = new cliProgress.SingleBar({ etaBuffer: changedTracks.length, format: `Curtidas [{bar}] {percentage}% | ETA: {eta_formatted} | {value}/{total} | {duration_formatted}` })
+    const bar = new cliProgress.SingleBar({
+      etaBuffer: changedTracks.length,
+      format: `Curtidas [{bar}] {percentage}% | ETA: {eta_formatted} | {value}/{total} | {duration_formatted}`,
+    })
 
     bar.start(changedTracks.length, 0)
 
@@ -276,4 +258,33 @@ async function trySave(api: SpotifyWebApi, trackId: string) {
       }
     })
   })
+}
+
+function countChanged(allTracks: Array<{ number: number }>) {
+  let count = 0
+  let changed = 0
+  const tracks = allTracks.map(track => Object.assign({}, track))
+
+  for (const track of tracks) {
+    if (track.number !== count) {
+      const isBefore = track.number > count
+
+      tracks.forEach(st => {
+        if (isBefore) {
+          if (st.number >= count && st.number < track.number) {
+            st.number += 1
+          }
+        } else if (st.number <= count && st.number > track.number) {
+          st.number -= 1
+        }
+      })
+
+      track.number = count
+      changed++
+    }
+
+    count++
+  }
+
+  return changed
 }
