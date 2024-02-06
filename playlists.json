@@ -1,7 +1,7 @@
 {
   "1LUoQE6myrvL1423CmMu9b": {
     "name": "Afrobeat / Dancehall",
-    "lastTotal": 59
+    "lastTotal": 61
   },
   "1SaKxWM1cBxaOlWEDkTbA7": {
     "name": "All Star Generation",
@@ -9,23 +9,23 @@
   },
   "216XKTk43hy8rtxNKZtT7m": {
     "name": "Axé Bahia",
-    "lastTotal": 74
+    "lastTotal": 75
   },
   "4adNjPRolqAIlUrFiyDmaH": {
     "name": "Baile Funk",
-    "lastTotal": 277
+    "lastTotal": 297
   },
   "58NNezvo3rti4loT3HgCLM": {
     "name": "Beat Rima",
-    "lastTotal": 153
+    "lastTotal": 156
   },
   "13jGhVafk8dvLQvGYLaQ1j": {
     "name": "Black Music",
-    "lastTotal": 163
+    "lastTotal": 164
   },
   "3nCQR6mlDkifspH09Ze4hx": {
     "name": "Boom Bap",
-    "lastTotal": 234
+    "lastTotal": 243
   },
   "0mpLHjKzeQljKsCSodjv10": {
     "name": "Break Dance",
@@ -37,7 +37,7 @@
   },
   "4AgZcIXXCOIGPW2f8QlQKJ": {
     "name": "Country",
-    "lastTotal": 15
+    "lastTotal": 16
   },
   "4aMNkOrax7YakhxR23MnSy": {
     "name": "Deathcore",
@@ -53,11 +53,11 @@
   },
   "1GPxVYwJu2Sfq6IAxdDP6u": {
     "name": "Drum & Bass",
-    "lastTotal": 124
+    "lastTotal": 125
   },
   "6KgdUPwlxmM5aTD2UbYmLl": {
     "name": "Dubstep",
-    "lastTotal": 55
+    "lastTotal": 56
   },
   "1RxevqsvYSHPGViV45Kd1K": {
     "name": "EDM",
@@ -77,11 +77,11 @@
   },
   "2uYbNgVncG8AzBz8zh9l62": {
     "name": "Folk",
-    "lastTotal": 54
+    "lastTotal": 55
   },
   "6Smx9KLsa6x07TQk0IzvLj": {
     "name": "Forró",
-    "lastTotal": 53
+    "lastTotal": 57
   },
   "28vWaLURAGfXzHz6FuAbbD": {
     "name": "Forró Raiz",
@@ -101,15 +101,15 @@
   },
   "5Vy7282pdsSN3bT9MmwBpj": {
     "name": "Funk Cantante",
-    "lastTotal": 185
+    "lastTotal": 193
   },
   "0Y7l99bCxOzFy0x3d7Q3Hx": {
     "name": "Funk Mandelão",
-    "lastTotal": 148
+    "lastTotal": 150
   },
   "1QZH2oNquYtipxQ7k6ZYaJ": {
     "name": "Funk Nostalgia",
-    "lastTotal": 307
+    "lastTotal": 308
   },
   "6ecb2CSkKukOcGznuc4ksP": {
     "name": "Funk Remix",
@@ -137,7 +137,7 @@
   },
   "4qXAyb6pZNFOsIv1bY9KbT": {
     "name": "Hardcore Brasileiro",
-    "lastTotal": 86
+    "lastTotal": 87
   },
   "75p1Gb0xJedzh3QJSqbZy8": {
     "name": "Hi-Tech & Dark",
@@ -149,11 +149,15 @@
   },
   "1gA0pdILuVLlBnIapAoRkF": {
     "name": "Indie & Alternative",
-    "lastTotal": 280
+    "lastTotal": 286
   },
   "0ii7JP49QS1JceSveYtvXE": {
     "name": "Karaokê Acústico",
-    "lastTotal": 58
+    "lastTotal": 59
+  },
+  "5ZDACDW5oaaSLjp77nOKzW": {
+    "name": "KPOP",
+    "lastTotal": 59
   },
   "3ptbZQq1sGxdEoG24xo4xA": {
     "name": "Lo-Fi Beats",
@@ -181,15 +185,19 @@
   },
   "0AapePGPsaTG2NUWnz2rlj": {
     "name": "Ok Boomer",
-    "lastTotal": 66
+    "lastTotal": 71
   },
   "4LjGRGzDey7NXNMOfWd71p": {
     "name": "Oldies",
-    "lastTotal": 62
+    "lastTotal": 63
+  },
+  "24a5OTJXCEy4FhPpaN30El": {
+    "name": "Oldies Nacional",
+    "lastTotal": 63
   },
   "3cyeSR7QfTfDP36T67sUfW": {
     "name": "Pagode & Samba",
-    "lastTotal": 177
+    "lastTotal": 183
   },
   "0hENKkqEfFwhwbCLdE1jSO": {
     "name": "Pérolas Brasileiras",
@@ -197,11 +205,11 @@
   },
   "2lloZmUFiF9EbxFt8DpVVX": {
     "name": "Pop",
-    "lastTotal": 140
+    "lastTotal": 160
   },
   "0rB5bVgaLOjNxCaWytnsCh": {
     "name": "Pop Nacional & MPB",
-    "lastTotal": 159
+    "lastTotal": 169
   },
   "2nDuJ0w5irC1rrBu5848ts": {
     "name": "Post-Hardcore",
@@ -221,11 +229,11 @@
   },
   "0c77i1vE0nFOIfSoF4CJTG": {
     "name": "Rap Acústico",
-    "lastTotal": 106
+    "lastTotal": 107
   },
   "71AgoVIWMMKAFmS4SsElY0": {
     "name": "Rap Internacional",
-    "lastTotal": 371
+    "lastTotal": 372
   },
   "3JGUE2BltqgXwnED5R4IaJ": {
     "name": "Rap Metal",
@@ -233,7 +241,7 @@
   },
   "3l9yduNoEDM2C7iJPqTc12": {
     "name": "Rap Nacional",
-    "lastTotal": 765
+    "lastTotal": 785
   },
   "5omezWpDcwVP6HVaxiXpx8": {
     "name": "Reggae Internacional",
@@ -245,19 +253,19 @@
   },
   "1bTAHRHaf4Ub2QSy0vSxsJ": {
     "name": "Reggaeton",
-    "lastTotal": 53
+    "lastTotal": 61
   },
   "5p3oUvnNTCl9RS8QalxQim": {
     "name": "Relaxar / Paz",
-    "lastTotal": 150
+    "lastTotal": 157
   },
   "6f0UCs9A6e0o9cCYru4x9M": {
     "name": "Rock",
-    "lastTotal": 152
+    "lastTotal": 158
   },
   "5Bsaxcv0CMMG2EuohX1Jsl": {
     "name": "Rock Nacional",
-    "lastTotal": 129
+    "lastTotal": 130
   },
   "3DXaCNnTT47az4q6rEUqec": {
     "name": "Rock N Roll",
@@ -265,7 +273,7 @@
   },
   "5E3EVeeGFu4zcmSGafOF45": {
     "name": "Sad Vibes",
-    "lastTotal": 58
+    "lastTotal": 60
   },
   "4u2gZron8Sv2GfFmNCKGpZ": {
     "name": "Sertanejo Nostalgia",
@@ -277,15 +285,19 @@
   },
   "5z9MyBdTfgEpkWpLjaAn4K": {
     "name": "Sertanejo Universitário",
-    "lastTotal": 130
+    "lastTotal": 141
   },
   "4435oqbIGoToUR8aVY88w2": {
     "name": "Sex & Love Internacional",
-    "lastTotal": 322
+    "lastTotal": 325
   },
   "3LuuPHAO86iHC9zzkoFXI0": {
     "name": "Sex & Love Nacional",
-    "lastTotal": 321
+    "lastTotal": 333
+  },
+  "4J6cpwFIaLc6l5KZEW2Fh4": {
+    "name": "Soul & Funk",
+    "lastTotal": 333
   },
   "3HiZJcoc0F3FBnINHaelxq": {
     "name": "Summer Eletrobrisa",
@@ -301,7 +313,7 @@
   },
   "6lgPvGvwZ4ecSGBx2dWuZl": {
     "name": "Trap Brasil",
-    "lastTotal": 711
+    "lastTotal": 731
   },
   "4CLA08vzRCLvIcHw78KqNo": {
     "name": "Trap & Future Bass",
@@ -313,6 +325,6 @@
   },
   "45wrsEJayj2Y7t1y4KB02j": {
     "name": "Trap Skrr",
-    "lastTotal": 316
+    "lastTotal": 321
   }
 }
