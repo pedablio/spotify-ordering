@@ -7,31 +7,29 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/cli-progress": "^3.11.5",
-    "@types/lodash": "^4.14.202",
+    "@types/cli-progress": "^3.11.6",
+    "@types/lodash": "^4.17.9",
     "@types/retry": "^0.12.5",
-    "@types/spotify-web-api-node": "^5.0.11",
-    "eslint": "^8.53.0",
-    "eslint-config-prettier": "^9.0.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
-    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-import": "^2.30.0",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^5.0.1",
-    "eslint-plugin-promise": "^6.1.1",
-    "eslint-plugin-react": "^7.33.2",
-    "prettier": "^3.0.3"
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-promise": "^6.6.0",
+    "eslint-plugin-react": "^7.37.0",
+    "prettier": "^3.3.3"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.3.3"
   },
   "dependencies": {
-    "axios": "^1.6.7",
+    "axios": "^1.7.7",
     "cli-progress": "^3.12.0",
     "delay": "^6.0.0",
     "elysia": "^0.8.16",
     "lodash": "^4.17.21",
     "retry": "^0.13.1",
-    "simple-json-db": "^2.0.0",
-    "spotify-web-api-node": "^5.0.2"
+    "simple-json-db": "^2.0.0"
   }
 }

@@ -1,7 +1,6 @@
 import { Elysia } from 'elysia'
 import path from 'path'
 import axios from 'axios'
-import SpotifyWebApi from 'spotify-web-api-node'
 import JSONdb from 'simple-json-db'
 import retry from 'retry'
 import delay from 'delay'
@@ -20,7 +19,9 @@ interface SavedTrack {
   lastTotal: number
 }
 
+let processingLiked = false
 const playlistDb = new JSONdb<SavedTrack>('./playlists.json', { jsonSpaces: 2 as unknown as boolean })
+const apiUrl = 'https://api.spotify.com/v1'
 
 new Elysia()
   .get('/', ({ set }) => {
@@ -59,10 +60,11 @@ new Elysia()
       const { id, lastTotal } = body as { id: string; lastTotal: number }
       const { token } = query
 
-      const api = new SpotifyWebApi({ accessToken: token as string })
-      const resp = await api.getPlaylistTracks(id, { limit: 1, fields: 'total' })
+      const { data } = await axios.get(`${apiUrl}/playlists/${id}/tracks?fields=total&limit=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
 
-      const { total } = resp.body
+      const { total } = data
 
       if (total === lastTotal) {
         return { result: 'same' }
@@ -72,19 +74,19 @@ new Elysia()
       const allTracks: Track[] = []
 
       for (const page of Array.from({ length }, (_, k) => k + 1)) {
-        const { body } = await api.getPlaylistTracks(id, {
-          limit: 100,
-          offset: (page - 1) * 100,
-        })
+        const { data } = await axios.get<{ items: any[] }>(
+          `${apiUrl}/playlists/${id}/tracks?limit=100&offset=${(page - 1) * 100}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
 
         allTracks.push(
-          ...body.items
+          ...data.items
             .filter(obj => obj.track)
             .map(obj => ({
-              id: obj.track!.id,
-              albumName: obj.track!.album.name,
-              name: obj.track!.name,
-              date: obj.track!.album.release_date,
+              id: obj.track.id,
+              albumName: obj.track.album.name,
+              name: obj.track.name,
+              date: obj.track.album.release_date,
             })),
         )
       }
@@ -109,7 +111,7 @@ new Elysia()
         for (const track of sortedTracks) {
           if (track.number !== count) {
             await delay(150)
-            await tryReorder(api, id, track.number, count)
+            await tryReorder(token!, id, track.number, count)
 
             const isBefore = track.number > count
 
@@ -142,29 +144,27 @@ new Elysia()
     }
   })
   .post('/liked', async ({ query }) => {
+    if (processingLiked) {
+      return { result: 'processing' }
+    }
+
+    processingLiked = true
+
     try {
-      const { token, refresh } = query
+      let { token, refresh } = query
 
-      const api = new SpotifyWebApi({
-        clientId: process.env.CLIENT_ID,
-        clientSecret: process.env.CLIENT_SECRET,
-        redirectUri: process.env.APP_URI,
-      })
-
-      api.setAccessToken(token as string)
-      api.setRefreshToken(refresh as string)
-
-      const resp = await api.getMySavedTracks({ limit: 1 })
-
-      const { total } = resp.body
+      const { data } = await axios.get(`${apiUrl}/me/tracks?limit=1`, { headers: { Authorization: `Bearer ${token}` } })
+      const { total } = data
       const length = Math.ceil(total / 50)
       const allTracks: Track[] = []
 
       for (const page of Array.from({ length }, (_, k) => k + 1)) {
-        const { body } = await api.getMySavedTracks({ limit: 50, offset: (page - 1) * 50 })
+        const { data } = await axios.get<{ items: any[] }>(`${apiUrl}/me/tracks?limit=50&offset=${(page - 1) * 50}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
 
         allTracks.push(
-          ...body.items.map(obj => ({
+          ...data.items.map(obj => ({
             id: obj.track.id,
             name: obj.track.name,
             albumName: obj.track.album.name,
@@ -193,11 +193,20 @@ new Elysia()
 
       for (const track of changedTracks) {
         if (trackNumber % 500 === 0) {
-          const { body } = await api.refreshAccessToken()
-          api.setAccessToken(body.access_token)
+          const { data } = await axios.post(
+            'https://accounts.spotify.com/api/token',
+            `grant_type=refresh_token&refresh_token=${refresh}`,
+            {
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              auth: { username: process.env.CLIENT_ID!, password: process.env.CLIENT_SECRET! },
+            },
+          )
+
+          token = data.access_token
+          refresh = data.refresh_token || refresh
         }
 
-        await trySave(api, track.id)
+        await trySave(token!, track.id)
         await delay(2000)
 
         bar.increment()
@@ -209,18 +218,23 @@ new Elysia()
 
       return { result: 'change', tracks: changedTracks.length }
     } catch (err) {
+      console.log({ err })
       return { error: true, data: err }
     }
   })
   .listen(4354)
 
-async function tryReorder(api: SpotifyWebApi, playlist: string, start: number, insertBefore: number) {
+async function tryReorder(token: string, playlist: string, start: number, insertBefore: number) {
   let operation = retry.operation({ retries: 5, factor: 2 })
 
   return new Promise<void>((resolve, reject) => {
     operation.attempt(async currentNumber => {
       try {
-        await api.reorderTracksInPlaylist(playlist, start, insertBefore)
+        await axios.put(
+          `${apiUrl}/playlists/${playlist}/tracks`,
+          { range_start: start, insert_before: insertBefore },
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
         resolve()
       } catch (error) {
         console.log(`Trying in ${currentNumber}`, error)
@@ -234,13 +248,13 @@ async function tryReorder(api: SpotifyWebApi, playlist: string, start: number, i
   })
 }
 
-async function trySave(api: SpotifyWebApi, trackId: string) {
+async function trySave(token: string, trackId: string) {
   const operation = retry.operation({ retries: 5, factor: 2 })
 
   return new Promise<void>((resolve, reject) => {
     operation.attempt(async currentNumber => {
       try {
-        await api.addToMySavedTracks([trackId])
+        await axios.put(`${apiUrl}/me/tracks`, { ids: [trackId] }, { headers: { Authorization: `Bearer ${token}` } })
         resolve()
       } catch (error) {
         console.log(`Trying in ${currentNumber}`, error)
