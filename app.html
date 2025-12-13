@@ -46,6 +46,9 @@
     <script type="text/javascript">
       const playlistsDiv = document.getElementById('playlists')
 
+      let currentJobWS = null
+      let pollInterval = null
+
       async function processPlaylists(playlists) {
         for (const playlist of playlists) {
           const item = playlistsDiv.querySelector(`[data-id='${playlist.id}']`)
@@ -62,44 +65,164 @@
           if (data.error) {
             checkItem.classList.add('change')
             checkItem.innerHTML = 'Erro na aplicação'
-
             item.appendChild(checkItem)
           } else if (data.result === 'same') {
             checkItem.classList.add('same')
             checkItem.innerHTML = 'Nada foi alterado'
-
             item.appendChild(checkItem)
           } else {
             checkItem.classList.add('change')
             checkItem.innerHTML = `${data.tracks} Músicas reordenadas`
-
             item.appendChild(checkItem)
           }
         }
       }
 
-      async function processLiked() {
+      function updateLikedStatus(className, message) {
         const statusItem = playlistsDiv.querySelector("[data-id='liked'] .check")
+        statusItem.className = 'check'
+        if (className) {
+          statusItem.classList.add(className)
+        }
+        statusItem.innerHTML = message
+      }
 
-        statusItem.classList.add('wait')
-        statusItem.innerHTML = 'Processando'
+      function connectWebSocket(jobId) {
+        console.log(`Connecting WebSocket for job ${jobId}`)
 
-        const response = await fetch(`/liked${location.search}`, {
-          method: 'POST',
-          headers: new Headers({ Accept: 'application/json', 'Content-Type': 'application/json' }),
-        })
+        if (currentJobWS) {
+          currentJobWS.close()
+        }
 
-        const data = await response.json()
+        if (pollInterval) {
+          clearInterval(pollInterval)
+          pollInterval = null
+        }
 
-        if (data.error) {
-          statusItem.classList.add('change')
-          statusItem.innerHTML = 'Erro na aplicação'
-        } else if (data.result === 'same') {
-          statusItem.classList.add('same')
-          statusItem.innerHTML = 'Nada foi alterado'
-        } else {
-          statusItem.classList.add('change')
-          statusItem.innerHTML = `${data.tracks} Músicas recurtidas`
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const wsUrl = `${protocol}//${location.host}/ws/${jobId}`
+
+        try {
+          currentJobWS = new WebSocket(wsUrl)
+
+          currentJobWS.onopen = () => {
+            console.log('WebSocket connected')
+          }
+
+          currentJobWS.onmessage = event => {
+            try {
+              const message = JSON.parse(event.data)
+              console.log('WS message:', message)
+
+              switch (message.type) {
+                case 'status':
+                case 'progress':
+                  const progress = message.data.progress || message.data
+                  if (progress && progress.message) {
+                    const percentText = progress.percentage ? ` (${progress.percentage}%)` : ''
+                    updateLikedStatus('wait', `${progress.message}${percentText}`)
+                  }
+                  break
+
+                case 'complete':
+                  const result = message.data
+                  if (result.success) {
+                    if (result.tracksChanged > 0) {
+                      updateLikedStatus('change', `${result.tracksChanged} Músicas recurtidas`)
+                    } else {
+                      updateLikedStatus('same', 'Nada foi alterado')
+                    }
+                  } else {
+                    updateLikedStatus('change', result.message || 'Erro ao processar')
+                  }
+                  currentJobWS.close()
+                  break
+
+                case 'error':
+                  updateLikedStatus('change', 'Erro na aplicação')
+                  currentJobWS.close()
+                  break
+              }
+            } catch (err) {
+              console.error('Failed to parse WS message:', err)
+            }
+          }
+
+          currentJobWS.onerror = error => {
+            console.error('WebSocket error:', error)
+            updateLikedStatus('change', 'Erro de conexão')
+            startPolling(jobId)
+          }
+
+          currentJobWS.onclose = () => {
+            console.log('WebSocket closed')
+            currentJobWS = null
+          }
+        } catch (err) {
+          console.error('Failed to create WebSocket:', err)
+          startPolling(jobId)
+        }
+      }
+
+      function startPolling(jobId) {
+        console.log(`Starting polling for job ${jobId}`)
+
+        pollInterval = setInterval(async () => {
+          try {
+            const response = await fetch(`/jobs/${jobId}/status`)
+            const job = await response.json()
+
+            if (job.error) {
+              console.error('Job not found, stopping poll')
+              clearInterval(pollInterval)
+              updateLikedStatus('change', 'Job não encontrado')
+              return
+            }
+
+            if (job.status === 'running' || job.status === 'pending') {
+              const percentText = job.progress.percentage ? ` (${job.progress.percentage}%)` : ''
+              updateLikedStatus('wait', `${job.progress.message}${percentText}`)
+            } else if (job.status === 'completed') {
+              clearInterval(pollInterval)
+              if (job.result.success) {
+                if (job.result.tracksChanged > 0) {
+                  updateLikedStatus('change', `${job.result.tracksChanged} Músicas recurtidas`)
+                } else {
+                  updateLikedStatus('same', 'Nada foi alterado')
+                }
+              } else {
+                updateLikedStatus('change', job.result.message || 'Erro ao processar')
+              }
+            } else if (job.status === 'failed') {
+              clearInterval(pollInterval)
+              updateLikedStatus('change', 'Erro na aplicação')
+            }
+          } catch (err) {
+            console.error('Polling error:', err)
+          }
+        }, 2000)
+      }
+
+      async function processLiked() {
+        updateLikedStatus('wait', 'Iniciando...')
+
+        try {
+          const response = await fetch(`/liked${location.search}`, {
+            method: 'POST',
+            headers: new Headers({ Accept: 'application/json', 'Content-Type': 'application/json' }),
+          })
+
+          const data = await response.json()
+
+          if (data.error) {
+            updateLikedStatus('change', 'Erro ao iniciar')
+            return
+          }
+
+          connectWebSocket(data.jobId)
+        } catch (err) {
+          console.error('Failed to start liked processing:', err)
+          updateLikedStatus('change', 'Erro de rede')
         }
       }
 
@@ -110,10 +233,8 @@
 
           for (const [id, data] of Object.entries(playlistObject)) {
             const item = document.createElement('div')
-
             item.dataset.id = id
             item.innerHTML = `${data.name} (${data.lastTotal})`
-
             playlistsDiv.appendChild(item)
             playlists.push({ id, ...data })
           }
@@ -125,6 +246,15 @@
           console.log(err)
           alert(err.message)
         })
+
+      window.addEventListener('beforeunload', () => {
+        if (currentJobWS) {
+          currentJobWS.close()
+        }
+        if (pollInterval) {
+          clearInterval(pollInterval)
+        }
+      })
     </script>
   </body>
 </html>

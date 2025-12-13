@@ -2,33 +2,90 @@ import { Elysia } from 'elysia'
 import path from 'path'
 import axios from 'axios'
 import JSONdb from 'simple-json-db'
-import retry from 'retry'
 import delay from 'delay'
 import cliProgress from 'cli-progress'
 import lodash from 'lodash'
-
-interface Track {
-  id: string
-  albumName: string
-  name: string
-  date: string
-}
+import { spawn } from 'child_process'
+import { wsManager } from './services/WebSocketManager'
+import { jobStore } from './services/JobStore'
+import { processLikedTracks } from './workers/LikedTracksWorker'
+import { tryReorder } from './utils/spotify'
+import type { Track } from './types/track'
 
 interface SavedTrack {
   name: string
   lastTotal: number
 }
 
-let processingLiked = false
+let appUri = ''
 const playlistDb = new JSONdb<SavedTrack>('./playlists.json', { jsonSpaces: 2 as unknown as boolean })
 const apiUrl = 'https://api.spotify.com/v1'
+const port = 4354
+
+function startTunnel() {
+  try {
+    spawn('pkill', ['ngrok'], { stdio: 'ignore' })
+  } catch {
+    // Ignora erro se não houver processos para matar
+  }
+
+  const ngrok = spawn('ngrok', ['http', port.toString()], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  setTimeout(async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:4040/api/tunnels')
+      const tunnel = response.data.tunnels.find((t: any) => t.proto === 'https')
+
+      if (tunnel && !appUri) {
+        appUri = tunnel.public_url
+        console.log(`🔒 Ngrok Tunnel: ${appUri}\n`)
+      }
+    } catch {
+      console.log('⏳ Aguardando ngrok iniciar...')
+    }
+  }, 2000)
+
+  ngrok.stdout.on('data', (data: Buffer) => {
+    const output = data.toString()
+    if (output.includes('started tunnel') || output.includes('url=')) {
+      console.log(`✅ Túnel ngrok conectado`)
+    }
+  })
+
+  ngrok.stderr.on('data', (data: Buffer) => {
+    const output = data.toString()
+    if (output.includes('ERR')) {
+      console.error('❌ Erro ngrok:', output)
+
+      if (output.includes('ERR_NGROK_334') || output.includes('already online')) {
+        console.log('\n💡 Solução: Execute "pkill ngrok" para encerrar processos antigos\n')
+      }
+    }
+  })
+
+  ngrok.on('error', (error: Error) => {
+    console.error('❌ Erro no túnel:', error.message)
+    console.log('💡 Instale o ngrok: brew install ngrok/ngrok/ngrok')
+  })
+
+  ngrok.on('close', (code: number) => {
+    if (code !== 0) console.log(`⚠️ Túnel encerrado com código ${code}`)
+  })
+
+  process.on('SIGINT', () => {
+    ngrok.kill()
+    process.exit(0)
+  })
+}
 
 new Elysia()
   .get('/', ({ set }) => {
     const loginUrl = 'https://accounts.spotify.com/authorize'
     const state = (Math.random() + 1).toString(36).substring(2)
     const clientId = process.env.CLIENT_ID
-    const redirectUri = `${process.env.APP_URI}/callback`
+    const redirectUri = `${appUri}/callback`
     const queryUrl = `?response_type=code&client_id=${clientId}&scope=playlist-modify-public,user-library-read,user-library-modify&redirect_uri=${redirectUri}&state=${state}`
 
     set.redirect = `${loginUrl}${queryUrl}`
@@ -44,17 +101,56 @@ new Elysia()
     try {
       const { data } = await axios.post(
         'https://accounts.spotify.com/api/token',
-        `code=${code}&redirect_uri=${process.env.APP_URI}/callback&grant_type=authorization_code`,
+        `code=${code}&redirect_uri=${appUri}/callback&grant_type=authorization_code`,
         { auth: { username: process.env.CLIENT_ID!, password: process.env.CLIENT_SECRET! } },
       )
 
-      set.redirect = `${process.env.APP_URI}/app?token=${data.access_token}&refresh=${data.refresh_token}`
+      set.redirect = `${appUri}/app?token=${data.access_token}&refresh=${data.refresh_token}`
     } catch (err) {
       return { error: true, data: err }
     }
   })
   .get('/app', () => Bun.file(path.resolve('./app.html')))
   .get('/playlists', () => Bun.file(path.resolve('./playlists.json')))
+  .ws('/ws/:jobId', {
+    open(ws) {
+      const jobId = ws.data.params.jobId
+      console.log(`WebSocket opened for job: ${jobId}`)
+
+      wsManager.registerConnection(jobId, ws)
+
+      const job = jobStore.getJob(jobId)
+      if (job) {
+        ws.send(
+          JSON.stringify({
+            type: 'status',
+            jobId,
+            data: {
+              status: job.status,
+              progress: job.progress,
+            },
+          }),
+        )
+      } else {
+        ws.send(
+          JSON.stringify({
+            type: 'error',
+            jobId,
+            data: { message: 'Job not found' },
+          }),
+        )
+        ws.close()
+      }
+    },
+    message(_ws, message) {
+      console.log('Received message:', message)
+    },
+    close(ws) {
+      const jobId = ws.data.params.jobId
+      console.log(`WebSocket closed for job: ${jobId}`)
+      wsManager.unregisterConnection(jobId, ws)
+    },
+  })
   .post('/process', async ({ body, query }) => {
     try {
       const { id, lastTotal } = body as { id: string; lastTotal: number }
@@ -144,128 +240,55 @@ new Elysia()
     }
   })
   .post('/liked', async ({ query }) => {
-    if (processingLiked) {
-      return { result: 'processing' }
-    }
-
-    processingLiked = true
-
     try {
-      let { token, refresh } = query
+      const { token, refresh } = query
 
-      const { data } = await axios.get(`${apiUrl}/me/tracks?limit=1`, { headers: { Authorization: `Bearer ${token}` } })
-      const { total } = data
-      const length = Math.ceil(total / 50)
-      const allTracks: Track[] = []
-
-      for (const page of Array.from({ length }, (_, k) => k + 1)) {
-        const { data } = await axios.get<{ items: any[] }>(`${apiUrl}/me/tracks?limit=50&offset=${(page - 1) * 50}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        allTracks.push(
-          ...data.items.map(obj => ({
-            id: obj.track.id,
-            name: obj.track.name,
-            albumName: obj.track.album.name,
-            date: obj.track.album.release_date,
-          })),
-        )
+      if (!token) {
+        return { error: true, message: 'Token required' }
       }
 
-      const tracks = allTracks.map((item, number) => ({ ...item, number }))
-      const sortedTracks = lodash.orderBy(tracks, ['date', 'albumName', 'name'], ['desc', 'asc', 'asc'])
-      const changedIndex = lodash.findLastIndex(sortedTracks, (track, index) => track.number !== index)
-
-      if (changedIndex === -1) {
-        return { result: 'same' }
-      }
-
-      const changedTracks = sortedTracks.slice(0, changedIndex + 1).reverse()
-      const bar = new cliProgress.SingleBar({
-        etaBuffer: changedTracks.length,
-        format: `Curtidas [{bar}] {percentage}% | ETA: {eta_formatted} | {value}/{total} | {duration_formatted}`,
+      const job = jobStore.createJob('liked', {
+        type: 'liked',
+        token: token as string,
+        refresh: refresh as string,
       })
 
-      bar.start(changedTracks.length, 0)
+      processLikedTracks(job.id).catch(err => {
+        console.error(`Job ${job.id} crashed:`, err)
+      })
 
-      let trackNumber = 1
-
-      for (const track of changedTracks) {
-        if (trackNumber % 500 === 0) {
-          const { data } = await axios.post(
-            'https://accounts.spotify.com/api/token',
-            `grant_type=refresh_token&refresh_token=${refresh}`,
-            {
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              auth: { username: process.env.CLIENT_ID!, password: process.env.CLIENT_SECRET! },
-            },
-          )
-
-          token = data.access_token
-          refresh = data.refresh_token || refresh
-        }
-
-        await trySave(token!, track.id)
-        await delay(2000)
-
-        bar.increment()
-
-        trackNumber++
+      return {
+        jobId: job.id,
+        message: 'Job started',
+        wsUrl: `/ws/${job.id}`,
       }
-
-      bar.stop()
-
-      return { result: 'change', tracks: changedTracks.length }
     } catch (err) {
-      console.log({ err })
       return { error: true, data: err }
     }
   })
-  .listen(4354)
+  .get('/jobs/:jobId/status', ({ params }) => {
+    const { jobId } = params
+    const job = jobStore.getJob(jobId)
 
-async function tryReorder(token: string, playlist: string, start: number, insertBefore: number) {
-  let operation = retry.operation({ retries: 5, factor: 2 })
+    if (!job) {
+      return { error: true, message: 'Job not found' }
+    }
 
-  return new Promise<void>((resolve, reject) => {
-    operation.attempt(async currentNumber => {
-      try {
-        await axios.put(
-          `${apiUrl}/playlists/${playlist}/tracks`,
-          { range_start: start, insert_before: insertBefore },
-          { headers: { Authorization: `Bearer ${token}` } },
-        )
-        resolve()
-      } catch (error) {
-        console.log(`Trying in ${currentNumber}`, error)
-
-        if (!operation.retry(error as Error)) {
-          reject(operation.mainError())
-          return
-        }
-      }
-    })
+    return {
+      id: job.id,
+      type: job.type,
+      status: job.status,
+      progress: job.progress,
+      result: job.result,
+      startTime: job.startTime,
+      endTime: job.endTime,
+      duration: job.endTime && job.startTime ? job.endTime - job.startTime : undefined,
+    }
   })
-}
-
-async function trySave(token: string, trackId: string) {
-  const operation = retry.operation({ retries: 5, factor: 2 })
-
-  return new Promise<void>((resolve, reject) => {
-    operation.attempt(async currentNumber => {
-      try {
-        await axios.put(`${apiUrl}/me/tracks`, { ids: [trackId] }, { headers: { Authorization: `Bearer ${token}` } })
-        resolve()
-      } catch (error) {
-        console.log(`Trying in ${currentNumber}`, error)
-
-        if (!operation.retry(error as Error)) {
-          reject(operation.mainError())
-        }
-      }
-    })
+  .listen({ port, idleTimeout: 255 }, () => {
+    console.log(`\n🚀 Servidor rodando em http://localhost:${port}`)
+    startTunnel()
   })
-}
 
 function countChanged(allTracks: Array<{ number: number }>) {
   let count = 0
