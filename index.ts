@@ -23,12 +23,6 @@ const apiUrl = 'https://api.spotify.com/v1'
 const port = 4354
 
 function startTunnel() {
-  try {
-    spawn('pkill', ['ngrok'], { stdio: 'ignore' })
-  } catch {
-    // Ignora erro se não houver processos para matar
-  }
-
   const ngrok = spawn('ngrok', ['http', port.toString()], {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -147,7 +141,6 @@ new Elysia()
     },
     close(ws) {
       const jobId = ws.data.params.jobId
-      console.log(`WebSocket closed for job: ${jobId}`)
       wsManager.unregisterConnection(jobId, ws)
     },
   })

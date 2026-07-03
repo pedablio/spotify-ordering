@@ -50,10 +50,9 @@ export async function processLikedTracks(jobId: string): Promise<void> {
     const allTracks: Track[] = []
 
     for (const page of Array.from({ length }, (_, k) => k + 1)) {
-      const { data } = await axios.get<{ items: any[] }>(
-        `${apiUrl}/me/tracks?limit=50&offset=${(page - 1) * 50}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      )
+      const { data } = await axios.get<{ items: any[] }>(`${apiUrl}/me/tracks?limit=50&offset=${(page - 1) * 50}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
 
       allTracks.push(
         ...data.items.map(obj => ({
@@ -147,13 +146,11 @@ export async function processLikedTracks(jobId: string): Promise<void> {
         message: `Recurtindo músicas... ${trackNumber}/${changedTracks.length}`,
       })
 
-      if (trackNumber % 10 === 0 || trackNumber === changedTracks.length) {
-        wsManager.broadcast(jobId, {
-          type: 'progress',
-          jobId,
-          data: jobStore.getJob(jobId)!.progress,
-        })
-      }
+      wsManager.broadcast(jobId, {
+        type: 'progress',
+        jobId,
+        data: jobStore.getJob(jobId)!.progress,
+      })
 
       trackNumber++
     }
